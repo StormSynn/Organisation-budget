@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon budget du mois</title>
+<style>
+:root{--bg:#eef1f4;--panel:#f8f9fb;--ink:#14213d;--mut:#5b6678;--rule:#cfd6df;--fix:#14213d;--dep:#c2790c;--rest:#0f766e;--bad:#b42318;--field:#fff;--trip:#7c5cbf;--proj:#c0397a}
+@media (prefers-color-scheme:dark){:root{--bg:#0e141c;--panel:#151d28;--ink:#e6ebf2;--mut:#93a0b4;--rule:#2a3546;--fix:#8fa8d6;--dep:#e8a33d;--rest:#3cc2b4;--bad:#ff8a80;--field:#0e141c;--trip:#b39ddb;--proj:#f08cb8}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:20px 16px 56px}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+h1{font:600 1.1rem/1.2 inherit;margin:0;color:var(--mut)}
+.tools{display:flex;gap:8px}
+.hero{padding:28px 0 20px;border-bottom:2px solid var(--ink)}
+.big{font:700 clamp(2.4rem,9vw,4.2rem)/1.05 Georgia,"Iowan Old Style",serif;letter-spacing:-.02em;margin:0}
+.big.neg{color:var(--bad)}
+.sub{margin:6px 0 0;color:var(--mut)}
+.bar{display:flex;height:16px;margin:18px 0 10px;background:var(--rule)}
+.bar span{display:block;height:100%;transition:width .25s}
+.leg{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:.92rem}
+.leg b{font-weight:600}
+.leg i{display:inline-block;width:12px;height:12px;margin-right:7px;vertical-align:-1px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0 40px;margin-top:8px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+section{padding:22px 0;border-bottom:1px solid var(--rule)}
+section.full{grid-column:1/-1}
+h2{font-size:1.05rem;margin:0 0 4px}
+.hint{margin:0 0 14px;color:var(--mut);font-size:.9rem}
+.row{display:flex;gap:8px;margin-bottom:8px}
+input{font:inherit;color:inherit;background:var(--field);border:1px solid var(--rule);border-radius:4px;padding:8px 10px;min-width:0}
+input[type=text]{flex:1}
+input[type=number]{width:130px;text-align:right}
+button{font:inherit;cursor:pointer;color:var(--ink);background:transparent;border:1px solid var(--ink);border-radius:4px;padding:7px 12px}
+button:hover{background:var(--ink);color:var(--bg)}
+button.x{border-color:var(--rule);color:var(--mut);padding:7px 10px}
+button.add{margin-top:4px;border-style:dashed}
+:focus-visible{outline:3px solid var(--rest);outline-offset:2px}
+.tot{display:flex;justify-content:space-between;margin-top:14px;font-weight:600}
+.one{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.one input{width:180px;font-size:1.2rem}
+#msg{margin:10px 0 0;font-size:.9rem;color:var(--mut)}
+.sal{display:flex;gap:8px;margin-bottom:4px}
+.sal input{flex:1;width:auto;text-align:left}
+select{font:inherit;color:inherit;background:var(--field);border:1px solid var(--rule);border-radius:4px;padding:8px 10px}
+.det{width:100%;border-collapse:collapse;font-size:.92rem;margin-top:8px}
+.det td{padding:3px 0}
+.det td:last-child{text-align:right}
+.det tr.net td{border-top:1px solid var(--rule);font-weight:600;padding-top:7px}
+.note{color:var(--mut);font-size:.85rem;margin:10px 0 18px}
+h3{font-size:.95rem;margin:0 0 4px}
+.trip{border-top:1px solid var(--rule);padding:12px 0 6px}
+.trip .row{flex-wrap:wrap;align-items:flex-end}
+.trip label{display:flex;flex-direction:column;gap:2px;flex:1;min-width:130px;font-size:.85rem;color:var(--mut)}
+.trip label input{width:100%;text-align:left;color:var(--ink)}
+.trip .m{margin:0 0 6px;font-size:.9rem;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Mon budget du mois</h1>
+  <div class="tools">
+    <button id="exp" type="button">Exporter mes données</button>
+    <button id="imp" type="button">Importer un fichier</button>
+    <input id="file" type="file" accept="application/json,.json" hidden>
+  </div>
+</header>
+
+<div class="hero">
+  <p class="sub">Il te reste ce mois-ci</p>
+  <p class="big" id="reste">0,00 $</p>
+  <div class="bar" id="bar" role="img" aria-label="Répartition des revenus"></div>
+  <div class="leg" id="leg"></div>
+  <p id="msg"></p>
+</div>
+
+<div class="cols">
+  <section>
+    <h2>Revenus</h2>
+    <p class="hint">Entre ton salaire brut : l’application estime ton salaire net.</p>
+    <div class="sal">
+      <input id="sal" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Salaire brut" aria-label="Salaire brut">
+      <select id="freq" aria-label="Fréquence du salaire">
+        <option value="1">par année</option>
+        <option value="12">par mois</option>
+        <option value="26">aux 2 semaines</option>
+        <option value="52">par semaine</option>
+      </select>
+    </div>
+    <table class="det" id="det"></table>
+    <p class="note">Estimation pour un salarié du Québec, célibataire, sans autre déduction (taux de 2026). Ton talon de paie fait foi.</p>
+    <h3>Autres revenus nets</h3>
+    <p class="hint">Revenus déjà après impôt, par mois.</p>
+    <div id="l-revenus"></div>
+    <button class="add" type="button" data-add="revenus">Ajouter un revenu</button>
+    <div class="tot"><span>Total net par mois</span><span id="t-revenus"></span></div>
+  </section>
+
+  <section>
+    <h2>Crédits et charges fixes</h2>
+    <p class="hint">Loyer, assurance auto, épargne et tout ce qui sort chaque mois.</p>
+    <div id="l-fixes"></div>
+    <button class="add" type="button" data-add="fixes">Ajouter une charge</button>
+    <div class="tot"><span>Total</span><span id="t-fixes"></span></div>
+  </section>
+
+  <section class="full">
+    <h2>Dépenses prévues</h2>
+    <p class="hint">Combien tu comptes dépenser ce mois-ci (épicerie, sorties, essence, etc.).</p>
+    <div class="one">
+      <label for="dep">Montant prévu</label>
+      <input id="dep" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0">
+    </div>
+  </section>
+
+  <section class="full">
+    <h2>Voyages</h2>
+    <p class="hint">Estime le coût et le mois du voyage : l’application calcule combien mettre de côté chaque mois.</p>
+    <div id="l-voyages"></div>
+    <button class="add" type="button" data-add="voyages">Ajouter un voyage</button>
+    <div class="tot"><span>À mettre de côté par mois</span><span id="t-voyages"></span></div>
+  </section>
+
+  <section class="full">
+    <h2>Projets</h2>
+    <p class="hint">Une voiture, un ordinateur, une mise de fonds… Estime le coût et le mois visé : l’application calcule combien mettre de côté chaque mois.</p>
+    <div id="l-projets"></div>
+    <button class="add" type="button" data-add="projets">Ajouter un projet</button>
+    <div class="tot"><span>À mettre de côté par mois</span><span id="t-projets"></span></div>
+  </section>
+</div>
+</main>
+
+<script>
+var KEY = "budget-perso-v1";
+var S = {
+  salaire: {a: 0, p: 1},
+  revenus: [],
+  voyages: [],
+  projets: [],
+  fixes: [{n: "Loyer", a: 0}, {n: "Assurance auto", a: 0}, {n: "Épargne", a: 0}],
+  depenses: 0
+};
+
+function goals(l) {
+  return (Array.isArray(l) ? l : []).map(function (x) {
+    return {n: String(x.n || ""), c: Number(x.c) || 0, s: Number(x.s) || 0, m: /^\d{4}-\d{2}$/.test(x.m) ? x.m : ""};
+  });
+}
+function clean(d) {
+  function list(l) {
+    return l.map(function (x) { return {n: String(x.n || ""), a: Number(x.a) || 0}; });
+  }
+  var s = d.salaire || {};
+  var p = Number(s.p);
+  return {
+    salaire: {a: Number(s.a) || 0, p: [1, 12, 26, 52].indexOf(p) >= 0 ? p : 1},
+    revenus: list(d.revenus),
+    fixes: list(d.fixes),
+    voyages: goals(d.voyages),
+    projets: goals(d.projets),
+    depenses: Number(d.depenses) || 0
+  };
+}
+function load() {
+  try {
+    var r = localStorage.getItem(KEY);
+    if (r) {
+      var d = JSON.parse(r);
+      if (d && Array.isArray(d.revenus) && Array.isArray(d.fixes)) S = clean(d);
+    }
+  } catch (e) {}
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+var money = new Intl.NumberFormat("fr-CA", {style: "currency", currency: "CAD"});
+function fmt(n) { return money.format(n || 0); }
+function sum(l) { return l.reduce(function (t, x) { return t + (Number(x.a) || 0); }, 0); }
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c];
+  });
+}
+function $(id) { return document.getElementById(id); }
+
+function listHTML(key) {
+  return S[key].map(function (x, i) {
+    return '<div class="row">' +
+      '<input type="text" value="' + esc(x.n) + '" data-k="' + key + '" data-i="' + i + '" data-f="n" placeholder="Nom" aria-label="Nom">' +
+      '<input type="number" inputmode="decimal" step="0.01" min="0" value="' + (x.a || "") + '" data-k="' + key + '" data-i="' + i + '" data-f="a" placeholder="0" aria-label="Montant">' +
+      '<button class="x" type="button" data-del="' + key + '" data-i="' + i + '" aria-label="Supprimer cette ligne">✕</button></div>';
+  }).join("");
+}
+
+/* Estimation du salaire net, résident du Québec, célibataire, paramètres 2026 */
+var FED = [[58523, 0.14], [117045, 0.205], [181440, 0.26], [258482, 0.29], [Infinity, 0.33]];
+var QC = [[54345, 0.14], [108680, 0.19], [132245, 0.24], [Infinity, 0.2575]];
+function prog(inc, br) {
+  var t = 0, prev = 0;
+  for (var i = 0; i < br.length; i++) {
+    if (inc > prev) t += (Math.min(inc, br[i][0]) - prev) * br[i][1];
+    prev = br[i][0];
+  }
+  return t;
+}
+function calcNet(G) {
+  G = Math.max(0, Number(G) || 0);
+  var base = Math.max(0, Math.min(G, 74600) - 3500);
+  var rrqBase = base * 0.053;
+  var rrq1 = base * 0.01;
+  var rrq2 = 0.04 * Math.max(0, Math.min(G, 85000) - 74600);
+  var ae = 0.013 * Math.min(G, 68900);
+  var rqap = 0.0043 * Math.min(G, 103000);
+  var ded = rrq1 + rrq2;
+
+  var fedInc = Math.max(0, G - ded);
+  var bpa = fedInc <= 181440 ? 16452 : (fedInc >= 258482 ? 14829 : 16452 - (16452 - 14829) * (fedInc - 181440) / (258482 - 181440));
+  var fedCred = 0.14 * (bpa + Math.min(G, 1501) + rrqBase + ae + rqap);
+  var fed = Math.max(0, prog(fedInc, FED) - fedCred) * (1 - 0.165);
+
+  var qcInc = Math.max(0, G - ded - Math.min(0.06 * G, 1450));
+  var qcCred = 0.14 * (18952 + rrqBase + ae + rqap);
+  var qc = Math.max(0, prog(qcInc, QC) - qcCred);
+
+  var rrq = rrqBase + rrq1 + rrq2;
+  return {G: G, fed: fed, qc: qc, rrq: rrq, ae: ae, rqap: rqap, net: G - fed - qc - rrq - ae - rqap};
+}
+
+function detail(c) {
+  if (!c.G) return "";
+  function row(l, v, cls) { return "<tr" + (cls ? ' class="' + cls + '"' : "") + "><td>" + l + "</td><td>" + fmt(v) + "</td></tr>"; }
+  return row("Salaire brut par année", c.G) +
+    row("Impôt fédéral", -c.fed) +
+    row("Impôt du Québec", -c.qc) +
+    row("Régime de rentes du Québec", -c.rrq) +
+    row("Assurance-emploi", -c.ae) +
+    row("Assurance parentale (RQAP)", -c.rqap) +
+    row("Salaire net par année", c.net, "net") +
+    row("Salaire net par mois", c.net / 12, "net");
+}
+
+function tripHTML(key) {
+  var pr = key === "projets";
+  var ph = pr ? "Nom du projet (ex. voiture)" : "Destination";
+  var sup = pr ? "Supprimer ce projet" : "Supprimer ce voyage";
+  var lab = pr ? "Mois visé" : "Mois du voyage";
+  return S[key].map(function (x, i) {
+    var a = ' data-k="' + key + '" data-i="' + i + '"';
+    return '<div class="trip"><div class="row">' +
+      '<input type="text" value="' + esc(x.n) + '"' + a + ' data-f="n" placeholder="' + ph + '" aria-label="' + ph + '">' +
+      '<button class="x" type="button" data-del="' + key + '" data-i="' + i + '" aria-label="' + sup + '">✕</button></div>' +
+      '<div class="row">' +
+      '<label>Coût estimé<input type="number" inputmode="decimal" step="0.01" min="0" value="' + (x.c || "") + '"' + a + ' data-f="c" placeholder="0"></label>' +
+      '<label>Déjà mis de côté<input type="number" inputmode="decimal" step="0.01" min="0" value="' + (x.s || "") + '"' + a + ' data-f="s" placeholder="0"></label>' +
+      '<label>' + lab + '<input type="month" value="' + esc(x.m) + '"' + a + ' data-f="m" placeholder="AAAA-MM"></label>' +
+      '</div><p class="m" id="vm-' + key + '-' + i + '"></p></div>';
+  }).join("");
+}
+
+function tripsInfo(key, totId) {
+  var tot = 0;
+  S[key].forEach(function (x, i) {
+    var txt = "", n = 0;
+    if (x.m) {
+      var p = x.m.split("-"), d = new Date();
+      n = (Number(p[0]) - d.getFullYear()) * 12 + (Number(p[1]) - 1 - d.getMonth());
+    }
+    var need = Math.max(0, (Number(x.c) || 0) - (Number(x.s) || 0));
+    if (!(Number(x.c) > 0)) txt = "Entre le coût estimé.";
+    else if (!x.m) txt = "Choisis un mois pour voir combien mettre de côté.";
+    else if (n < 0) txt = "Ce mois est déjà passé.";
+    else if (!need) txt = "Tu as déjà tout mis de côté.";
+    else {
+      var k = Math.max(1, n), mo = need / k;
+      tot += mo;
+      txt = fmt(mo) + " par mois pendant " + k + " mois.";
+    }
+    var el = $("vm-" + key + "-" + i);
+    if (el) el.textContent = txt;
+  });
+  $(totId).textContent = fmt(tot);
+  return tot;
+}
+
+function summary() {
+  var c = calcNet((Number(S.salaire.a) || 0) * (Number(S.salaire.p) || 1));
+  $("det").innerHTML = detail(c);
+  var rev = c.net / 12 + sum(S.revenus), fix = sum(S.fixes), dep = Number(S.depenses) || 0;
+  var trips = tripsInfo("voyages", "t-voyages");
+  var projs = tripsInfo("projets", "t-projets");
+  var reste = rev - fix - dep - trips - projs;
+  $("t-revenus").textContent = fmt(rev);
+  $("t-fixes").textContent = fmt(fix);
+  $("reste").textContent = fmt(reste);
+  $("reste").className = "big" + (reste < 0 ? " neg" : "");
+  var total = Math.max(rev, fix + dep + trips + projs) || 1;
+  var parts = [
+    ["Charges fixes", fix, "var(--fix)"],
+    ["Dépenses prévues", dep, "var(--dep)"],
+    ["Voyages", trips, "var(--trip)"],
+    ["Projets", projs, "var(--proj)"],
+    ["Reste", Math.max(reste, 0), "var(--rest)"]
+  ];
+  $("bar").innerHTML = parts.map(function (p) {
+    return '<span style="width:' + (p[1] / total * 100) + '%;background:' + p[2] + '"></span>';
+  }).join("");
+  $("leg").innerHTML = parts.map(function (p) {
+    return '<span><i style="background:' + p[2] + '"></i>' + p[0] + " <b>" + fmt(p[1]) + "</b></span>";
+  }).join("");
+  $("msg").textContent = reste < 0
+    ? "Tu dépasses tes revenus de " + fmt(-reste) + " ce mois-ci."
+    : (rev > 0 ? "Tes charges fixes, tes dépenses prévues et tes mises de côté représentent " + Math.round((fix + dep + trips + projs) / rev * 100) + " % de tes revenus." : "Ajoute tes revenus pour voir le résultat.");
+}
+
+function render() {
+  $("l-revenus").innerHTML = listHTML("revenus");
+  $("l-fixes").innerHTML = listHTML("fixes");
+  $("l-voyages").innerHTML = tripHTML("voyages");
+  $("l-projets").innerHTML = tripHTML("projets");
+  $("dep").value = S.depenses || "";
+  $("sal").value = S.salaire.a || "";
+  $("freq").value = String(S.salaire.p);
+  summary();
+}
+
+document.addEventListener("input", function (e) {
+  var t = e.target;
+  if (t.id === "sal") {
+    S.salaire.a = parseFloat(t.value) || 0;
+  } else if (t.id === "freq") {
+    S.salaire.p = Number(t.value) || 1;
+  } else if (t.id === "dep") {
+    S.depenses = parseFloat(t.value) || 0;
+  } else if (t.dataset && t.dataset.k) {
+    var x = S[t.dataset.k][t.dataset.i];
+    x[t.dataset.f] = ["a", "c", "s"].indexOf(t.dataset.f) >= 0 ? (parseFloat(t.value) || 0) : t.value;
+  } else { return; }
+  save();
+  summary();
+});
+
+document.addEventListener("click", function (e) {
+  var t = e.target;
+  if (t.dataset && t.dataset.add) {
+    S[t.dataset.add].push((t.dataset.add === "voyages" || t.dataset.add === "projets") ? {n: "", c: 0, s: 0, m: ""} : {n: "", a: 0});
+    save(); render();
+    var inputs = document.querySelectorAll("#l-" + t.dataset.add + ' input[type=text]');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  } else if (t.dataset && t.dataset.del) {
+    S[t.dataset.del].splice(t.dataset.i, 1);
+    save(); render();
+  }
+});
+
+$("exp").addEventListener("click", function () {
+  var blob = new Blob([JSON.stringify(S, null, 2)], {type: "application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "budget-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+});
+
+$("imp").addEventListener("click", function () { $("file").click(); });
+$("file").addEventListener("change", function () {
+  var f = this.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    try {
+      var d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.revenus) || !Array.isArray(d.fixes)) throw new Error("format");
+      if (confirm("Remplacer les données actuelles par celles du fichier?")) {
+        S = clean(d);
+        save(); render();
+      }
+    } catch (err) {
+      alert("Ce fichier n’est pas un export de budget valide.");
+    }
+    $("file").value = "";
+  };
+  r.readAsText(f);
+});
+
+load();
+render();
+</script>
+</body>
+</html>
